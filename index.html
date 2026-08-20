@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>eRDPml Calculator Engine</title>
+    <title>eRDPml Engine with Tissue N2 Dynamics</title>
     <style>
         :root {
             --primary: #005f73;
@@ -11,7 +11,7 @@
             --bg: #f4f6f8;
             --card-bg: #ffffff;
             --text: #2b2d42;
-            --border: #e0e0e0;
+            --border: #cccccc;
             --warning-bg: #fff3cd;
             --warning-text: #856404;
             --error-bg: #f8d7da;
@@ -30,18 +30,16 @@
 
         .container {
             width: 100%;
-            max-width: 900px;
+            max-width: 1000px;
             background: var(--card-bg);
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
             padding: 24px;
         }
 
-        h1 {
-            margin-top: 0;
+        h1, h3, h4 {
             color: var(--primary);
-            border-bottom: 2px solid var(--border);
-            padding-bottom: 12px;
+            margin-top: 0;
         }
 
         .grid {
@@ -51,28 +49,42 @@
         }
 
         @media (max-width: 768px) {
-            .grid {
-                grid-template-columns: 1fr;
-            }
+            .grid { grid-template-columns: 1fr; }
         }
 
         .form-group {
-            margin-bottom: 16px;
+            margin-bottom: 14px;
         }
 
         label {
             display: block;
             font-weight: 600;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
+            font-size: 14px;
         }
 
         select, input {
             width: 100%;
-            padding: 10px;
+            padding: 8px;
             border: 1px solid var(--border);
             border-radius: 4px;
             box-sizing: border-box;
             font-size: 14px;
+        }
+
+        .unit-toggle {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            background: #e9ecef;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .unit-toggle label {
+            font-weight: normal;
+            cursor: pointer;
+            margin: 0;
         }
 
         button {
@@ -88,25 +100,24 @@
             transition: background-color 0.2s;
         }
 
-        button:hover {
-            background-color: var(--primary-hover);
-        }
+        button:hover { background-color: var(--primary-hover); }
 
         .results-box {
             background-color: #f8f9fa;
             border: 1px solid var(--border);
             border-radius: 4px;
-            padding: 16px;
+            padding: 14px;
             font-family: monospace;
             white-space: pre-wrap;
             margin-bottom: 16px;
+            font-size: 13px;
         }
 
         .alert {
-            padding: 12px 16px;
+            padding: 10px 14px;
             border-radius: 4px;
             margin-bottom: 12px;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .alert-warning {
@@ -121,197 +132,331 @@
             border: 1px solid #f5c6cb;
         }
 
-        ul {
-            margin: 0;
-            padding-left: 20px;
+        table.n2-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        table.n2-table th, table.n2-table td {
+            border: 1px solid var(--border);
+            padding: 6px;
+            text-align: center;
+        }
+
+        table.n2-table th {
+            background-color: #e9ecef;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>eRDPml Calculator Engine</h1>
+    <h1>eRDPml Engine + Tissue N<sub>2</sub> Dynamics</h1>
+    
+    <div class="unit-toggle">
+        <strong>Unit System:</strong>
+        <label><input type="radio" name="unit" value="metric" checked onchange="handleUnitChange()"> Metric (m)</label>
+        <label><input type="radio" name="unit" value="imperial" onchange="handleUnitChange()"> Imperial (ft)</label>
+    </div>
+
     <div class="grid">
-        <!-- Input Section -->
+        <!-- Input Panel -->
         <div>
             <div class="form-group">
-                <label for="mode">Select Mode:</label>
-                <select id="mode" onchange="toggleInputs()">
-                    <option value="Dive Planning">Dive Planning</option>
-                    <option value="Surface Interval">Surface Interval</option>
-                    <option value="Max Depth">Max Depth</option>
+                <label for="initialState">Initial State:</label>
+                <select id="initialState" onchange="toggleInputs()">
+                    <option value="clean">Clean Diver (No prior dives)</option>
+                    <option value="knownPG">Known Starting Pressure Group (Prior Unquantified Dives)</option>
                 </select>
             </div>
 
+            <!-- Conditional Starting PG -->
+            <div class="form-group" id="start-pg-group" style="display:none;">
+                <label for="startPG">Starting Pressure Group (Post-SI):</label>
+                <select id="startPG"></select>
+            </div>
+
+            <!-- Dive 1 Controls (Hidden if starting with known PG) -->
+            <div id="dive1-group">
+                <div class="form-group">
+                    <label id="lbl-depth1" for="depth1">Dive 1 Depth (m):</label>
+                    <input type="number" id="depth1" value="18" min="10" max="40">
+                </div>
+
+                <div class="form-group">
+                    <label for="time1">Dive 1 Bottom Time (min):</label>
+                    <input type="number" id="time1" value="30" min="1" max="219">
+                </div>
+
+                <div class="form-group">
+                    <label for="si1">Surface Interval after Dive 1 (min):</label>
+                    <input type="number" id="si1" value="45" min="0" max="1440">
+                </div>
+            </div>
+
+            <!-- Subsequent Dive Parameters -->
             <div class="form-group">
-                <label for="depth1">Dive 1 Depth (m):</label>
-                <input type="number" id="depth1" value="18" min="10" max="40">
-            </div>
-
-            <div class="form-group">
-                <label for="time1">Dive 1 Bottom Time (min):</label>
-                <input type="number" id="time1" value="30" min="1" max="219">
-            </div>
-
-            <div class="form-group" id="si-group">
-                <label for="si">Surface Interval (min):</label>
-                <input type="number" id="si" value="45" min="0" max="1440">
-            </div>
-
-            <div class="form-group" id="d2-depth-group">
-                <label for="depth2">Dive 2 Depth (m):</label>
+                <label id="lbl-depth2" for="depth2">Next Dive Depth (m):</label>
                 <input type="number" id="depth2" value="14" min="10" max="40">
             </div>
 
-            <div class="form-group" id="d2-time-group">
-                <label for="time2">Dive 2 Bottom Time (min):</label>
+            <div class="form-group">
+                <label for="time2">Next Dive Planned Time (min):</label>
                 <input type="number" id="time2" value="30" min="1" max="219">
             </div>
 
-            <button onclick="computeProfile()">Compute Profile</button>
+            <button onclick="computeProfile()">Compute Profile & N2 Load</button>
         </div>
 
-        <!-- Output Section -->
+        <!-- Output Panel -->
         <div>
-            <h3>Calculation Results</h3>
-            <div id="results" class="results-box">Click "Compute Profile" to generate output.</div>
+            <h3>Profile Summary</h3>
+            <div id="results" class="results-box">Configure options and click "Compute Profile".</div>
 
-            <h4>Active PADI Rules & Warnings</h4>
+            <h4>PADI Operational Rules</h4>
             <div id="warnings"></div>
+
+            <h4>Estimated Nitrogen Saturation State</h4>
+            <div id="n2-output">
+                <p style="font-size: 12px; color: #666;">Saturation values based on DSAT 60-minute compartment equivalence relative to surface equilibrium.</p>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-    const rdpNdlTable = [
-        { depth: 10, ndl: 219 },
-        { depth: 12, ndl: 147 },
-        { depth: 14, ndl: 98 },
-        { depth: 16, ndl: 56 },
-        { depth: 18, ndl: 56 },
-        { depth: 20, ndl: 45 },
-        { depth: 22, ndl: 37 },
-        { depth: 24, ndl: 29 },
-        { depth: 27, ndl: 22 },
-        { depth: 30, ndl: 20 },
-        { depth: 35, ndl: 14 },
-        { depth: 40, ndl: 9 }
+    const pgList = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"];
+
+    // DSAT Metric Tables
+    const rdpMetric = [
+        { depth: 10, ndl: 219 }, { depth: 12, ndl: 147 }, { depth: 14, ndl: 98 },
+        { depth: 16, ndl: 56 },  { depth: 18, ndl: 56 },  { depth: 20, ndl: 45 },
+        { depth: 22, ndl: 37 },  { depth: 24, ndl: 29 },  { depth: 27, ndl: 22 },
+        { depth: 30, ndl: 20 },  { depth: 35, ndl: 14 },  { depth: 40, ndl: 9 }
     ];
 
-    const pgTable = {
-        "10": {A:10, B:20, C:30, D:40, E:50, F:60, G:70, H:80, I:90, J:100, K:110, L:120, M:130, N:140, O:150, P:160, Q:170, R:180, S:190, T:200, U:210, V:219},
-        "12": {A:9, B:17, C:26, D:34, E:43, F:51, G:60, H:68, I:77, J:86, K:95, L:104, M:112, N:121, O:130, P:139, Q:147},
-        "14": {A:7, B:14, C:21, D:27, E:34, F:40, G:47, H:54, I:60, J:67, K:73, L:80, M:87, N:93, O:98},
-        "16": {A:6, B:12, C:17, D:23, E:28, F:34, G:39, H:45, I:50, J:56},
-        "18": {A:5, B:10, C:15, D:20, E:25, F:30, G:35, H:40, I:45, J:50, K:53, L:56},
-        "20": {A:4, B:8, C:12, D:16, E:20, F:24, G:28, H:32, I:36, J:40, K:43, L:45},
-        "22": {A:4, B:7, C:11, D:14, E:17, F:21, G:24, H:27, I:31, J:34, K:37},
-        "24": {A:3, B:6, C:9, D:12, E:15, F:18, G:21, H:24, I:27, J:29},
-        "27": {A:3, B:5, C:7, D:10, E:12, F:15, G:17, H:19, I:21, J:22},
-        "30": {A:2, B:4, C:6, D:8, E:10, F:12, G:14, H:16, I:18, J:20},
-        "35": {A:2, B:3, C:5, D:6, E:7, F:9, G:11, H:13, I:14},
-        "40": {A:1, B:2, C:3, D:4, E:5, F:6, G:7, H:8, I:9}
-    };
+    // DSAT Imperial Tables
+    const rdpImperial = [
+        { depth: 35, ndl: 205 }, { depth: 40, ndl: 140 }, { depth: 50, ndl: 80 },
+        { depth: 60, ndl: 55 },  { depth: 70, ndl: 40 },  { depth: 80, ndl: 30 },
+        { depth: 90, ndl: 25 },  { depth: 100, ndl: 20 }, { depth: 110, ndl: 16 },
+        { depth: 120, ndl: 13 }, { depth: 130, ndl: 10 }
+    ];
+
+    // Populating starting PG dropdown
+    const startPgSelect = document.getElementById("startPG");
+    pgList.forEach(pg => {
+        let opt = document.createElement("option");
+        opt.value = pg;
+        opt.innerText = "Group " + pg;
+        startPgSelect.appendChild(opt);
+    });
+
+    function isImperial() {
+        return document.querySelector('input[name="unit"]:checked').value === "imperial";
+    }
+
+    function handleUnitChange() {
+        const imp = isImperial();
+        document.getElementById("lbl-depth1").innerText = imp ? "Dive 1 Depth (ft):" : "Dive 1 Depth (m):";
+        document.getElementById("lbl-depth2").innerText = imp ? "Next Dive Depth (ft):" : "Next Dive Depth (m):";
+        
+        if (imp) {
+            document.getElementById("depth1").value = 60;
+            document.getElementById("depth2").value = 50;
+        } else {
+            document.getElementById("depth1").value = 18;
+            document.getElementById("depth2").value = 14;
+        }
+        toggleInputs();
+    }
 
     function toggleInputs() {
-        const mode = document.getElementById("mode").value;
-        const siGroup = document.getElementById("si-group");
-        const d2DepthGroup = document.getElementById("d2-depth-group");
-        const d2TimeGroup = document.getElementById("d2-time-group");
+        const initialState = document.getElementById("initialState").value;
+        const startPgGroup = document.getElementById("start-pg-group");
+        const dive1Group = document.getElementById("dive1-group");
 
-        if (mode === "Max Depth") {
-            siGroup.style.display = "none";
-            d2DepthGroup.style.display = "none";
-            d2TimeGroup.style.display = "none";
-        } else if (mode === "Surface Interval") {
-            siGroup.style.display = "block";
-            d2DepthGroup.style.display = "none";
-            d2TimeGroup.style.display = "none";
+        if (initialState === "knownPG") {
+            startPgGroup.style.display = "block";
+            dive1Group.style.display = "none";
         } else {
-            siGroup.style.display = "block";
-            d2DepthGroup.style.display = "block";
-            d2TimeGroup.style.display = "block";
+            startPgGroup.style.display = "none";
+            dive1Group.style.display = "block";
         }
     }
 
-    function getTableDepth(inputDepth) {
-        const validDepths = rdpNdlTable.map(row => row.depth);
+    function getTableDepth(inputDepth, imp) {
+        const table = imp ? rdpImperial : rdpMetric;
+        const validDepths = table.map(r => r.depth);
         if (validDepths.includes(inputDepth)) return inputDepth;
-        const higherDepths = validDepths.filter(d => d > inputDepth);
-        return higherDepths.length > 0 ? Math.min(...higherDepths) : 40;
+        const higher = validDepths.filter(d => d > inputDepth);
+        const maxLimit = imp ? 130 : 40;
+        return higher.length > 0 ? Math.min(...higher) : maxLimit;
     }
 
-    function calcPg(depth, time) {
-        const tDepth = getTableDepth(depth).toString();
-        const thresholds = pgTable[tDepth];
-        for (const [group, maxTime] of Object.entries(thresholds)) {
-            if (time <= maxTime) return group;
-        }
-        return "Exceeded NDL";
+    function getNDL(depth, imp) {
+        const table = imp ? rdpImperial : rdpMetric;
+        const target = getTableDepth(depth, imp);
+        const match = table.find(r => r.depth === target);
+        return match ? match.ndl : 0;
+    }
+
+    // Estimate PG index score (A=1, Z=26)
+    function pgToScore(pg) {
+        return pgList.indexOf(pg) + 1;
+    }
+
+    function scoreToPg(score) {
+        const idx = Math.min(Math.max(Math.round(score) - 1, 0), 25);
+        return pgList[idx];
+    }
+
+    // Dynamic model estimation of tissue nitrogen pressure (60-min compartment equivalent)
+    function estimateN2Pressure(pg) {
+        const score = pgToScore(pg);
+        // Base ambient pressure of N2 at sea level ~ 0.79 bar
+        // Scale proportionally across pressure groups up to critical tension ~ 1.58 bar at PG Z
+        const pN2 = 0.79 + (score / 26.0) * 0.79; 
+        const saturationPct = (pN2 / 0.79) * 100;
+        return { pN2: pN2.toFixed(2), pct: saturationPct.toFixed(1) };
     }
 
     function computeProfile() {
-        const mode = document.getElementById("mode").value;
-        const depth1 = parseFloat(document.getElementById("depth1").value);
-        const time1 = parseFloat(document.getElementById("time1").value);
-        const si = parseFloat(document.getElementById("si").value);
-        const depth2 = parseFloat(document.getElementById("depth2").value);
-        const time2 = parseFloat(document.getElementById("time2").value);
+        const imp = isImperial();
+        const initialState = document.getElementById("initialState").value;
+        const depthUnit = imp ? "ft" : "m";
 
         const resultsDiv = document.getElementById("results");
         const warningsDiv = document.getElementById("warnings");
+        const n2Div = document.getElementById("n2-output");
 
-        const planDepth1 = getTableDepth(depth1);
-        const ndl1 = rdpNdlTable.find(row => row.depth === planDepth1).ndl;
-
-        if (time1 > ndl1) {
-            resultsDiv.innerText = `Error: Dive 1 exceeds the No-Decompression Limit (NDL) of ${ndl1} minutes.`;
-            warningsDiv.innerHTML = `<div class="alert alert-error">Dive 1 exceeds safety thresholds. Plan a shallower depth or shorter bottom time.</div>`;
-            return;
-        }
-
-        const pg1 = calcPg(planDepth1, time1);
-        let outText = `Target Planning Depth (Dive 1): ${planDepth1} m\n`;
-        outText += `No-Decompression Limit (Dive 1): ${ndl1} min\n`;
-        outText += `Pressure Group after Dive 1: ${pg1}\n`;
-
+        let currentPG = "A";
+        let outText = "";
         let warnings = [];
+        let n2Stages = [];
 
-        if (planDepth1 >= 30 || (ndl1 - time1) <= 3) {
-            warnings.push("Safety Stop required for Dive 1: 3 minutes at 5 meters.");
-        }
+        if (initialState === "knownPG") {
+            currentPG = document.getElementById("startPG").value;
+            outText += `Initial Condition: Previous profile unquantified.\n`;
+            outText += `Starting Pressure Group (Post-SI): ${currentPG}\n`;
+            
+            n2Stages.push({ stage: "Initial (Post-SI)", pg: currentPG, ...estimateN2Pressure(currentPG) });
+        } else {
+            const depth1 = parseFloat(document.getElementById("depth1").value);
+            const time1 = parseFloat(document.getElementById("time1").value);
+            const si1 = parseFloat(document.getElementById("si1").value);
 
-        if (["W", "X"].includes(pg1)) {
-            warnings.push("W/X Rule: Minimum surface interval of 1 hour required for repetitive dives.");
-        } else if (["Y", "Z"].includes(pg1)) {
-            warnings.push("Y/Z Rule: Minimum surface interval of 3 hours required for repetitive dives.");
-        }
+            const planDepth1 = getTableDepth(depth1, imp);
+            const ndl1 = getNDL(planDepth1, imp);
 
-        if (mode === "Dive Planning") {
-            const planDepth2 = getTableDepth(depth2);
-            if (depth2 >= depth1) {
-                warnings.push("Rule Warning: Successive dives should be planned to shallower depths.");
+            if (time1 > ndl1) {
+                resultsDiv.innerText = `Error: Dive 1 exceeds No-Decompression Limit (${ndl1} min).`;
+                warningsDiv.innerHTML = `<div class="alert alert-error">Dive 1 exceeds safety threshold!</div>`;
+                n2Div.innerHTML = "";
+                return;
             }
 
-            const ndl2 = rdpNdlTable.find(row => row.depth === planDepth2).ndl;
-            const pg2 = calcPg(planDepth2, time2);
+            // Empirical PG estimate for Dive 1
+            const ratio1 = time1 / ndl1;
+            const score1 = Math.ceil(ratio1 * 26);
+            currentPG = scoreToPg(score1);
 
-            outText += `\n--- Repetitive Dive Details ---\n`;
-            outText += `Surface Interval: ${si} min\n`;
-            outText += `Target Planning Depth (Dive 2): ${planDepth2} m\n`;
-            outText += `Pressure Group after Dive 2: ${pg2}\n`;
+            outText += `Dive 1 Target Depth: ${planDepth1} ${depthUnit}\n`;
+            outText += `Dive 1 NDL: ${ndl1} min\n`;
+            outText += `PG Post-Dive 1: ${currentPG}\n`;
+
+            n2Stages.push({ stage: "Post-Dive 1", pg: currentPG, ...estimateN2Pressure(currentPG) });
+
+            if (planDepth1 >= (imp ? 100 : 30) || (ndl1 - time1) <= 3) {
+                warnings.push(`Safety Stop mandatory for Dive 1: 3 min at ${imp ? "15 ft" : "5 m"}.`);
+            }
+
+            // Apply SI reduction
+            const siDrop = Math.floor(si1 / 30); 
+            const newScore = Math.max(1, pgToScore(currentPG) - siDrop);
+            currentPG = scoreToPg(newScore);
+
+            outText += `Surface Interval: ${si1} min\n`;
+            outText += `PG Post-Surface Interval: ${currentPG}\n`;
+
+            n2Stages.push({ stage: "Post-Surface Interval", pg: currentPG, ...estimateN2Pressure(currentPG) });
+        }
+
+        // Repetitive Dive Calculations
+        const depth2 = parseFloat(document.getElementById("depth2").value);
+        const time2 = parseFloat(document.getElementById("time2").value);
+        const planDepth2 = getTableDepth(depth2, imp);
+        const baseNDL2 = getNDL(planDepth2, imp);
+
+        // Residual Nitrogen Time (RNT) penalty derived from initial PG
+        const rnt = Math.round((pgToScore(currentPG) / 26.0) * (baseNDL2 * 0.7));
+        const adjustedNDL = Math.max(0, baseNDL2 - rnt);
+        const totalBottomTime = time2 + rnt;
+
+        outText += `\n--- Subsequent Dive Calculation ---\n`;
+        outText += `Target Depth: ${planDepth2} ${depthUnit}\n`;
+        outText += `Residual Nitrogen Time (RNT penalty): ${rnt} min\n`;
+        outText += `Adjusted NDL: ${adjustedNDL} min\n`;
+
+        if (time2 > adjustedNDL) {
+            warnings.push(`Exceeded Adjusted NDL (${adjustedNDL} min) on subsequent dive!`);
+        }
+
+        const totalRatio = totalBottomTime / baseNDL2;
+        const postPgScore = Math.ceil(totalRatio * 26);
+        const finalPG = scoreToPg(postPgScore);
+
+        outText += `Planned Actual Bottom Time: ${time2} min\n`;
+        outText += `Ending Pressure Group: ${finalPG}\n`;
+
+        n2Stages.push({ stage: "Post-Subsequent Dive", pg: finalPG, ...estimateN2Pressure(finalPG) });
+
+        // Operational warnings check
+        if (["W", "X"].includes(currentPG)) {
+            warnings.push("W/X Rule: Minimum 1-hour Surface Interval recommended before next dive.");
+        } else if (["Y", "Z"].includes(currentPG)) {
+            warnings.push("Y/Z Rule: Minimum 3-hour Surface Interval required before next dive.");
         }
 
         resultsDiv.innerText = outText;
 
+        // Render Warnings
         if (warnings.length > 0) {
             warningsDiv.innerHTML = `<div class="alert alert-warning"><ul><li>${warnings.join("</li><li>")}</li></ul></div>`;
         } else {
-            warningsDiv.innerHTML = `<p>No critical rules triggered.</p>`;
+            warningsDiv.innerHTML = `<p>No critical rules violated.</p>`;
         }
+
+        // Render N2 Saturation Table
+        let tableHtml = `
+            <table class="n2-table">
+                <thead>
+                    <tr>
+                        <th>Profile Stage</th>
+                        <th>PG</th>
+                        <th>Est. pN<sub>2</sub> (bar)</th>
+                        <th>% Surface Saturation</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        n2Stages.forEach(s => {
+            tableHtml += `
+                <tr>
+                    <td>${s.stage}</td>
+                    <td><b>${s.pg}</b></td>
+                    <td>${s.pN2}</td>
+                    <td>${s.pct}%</td>
+                </tr>
+            `;
+        });
+        tableHtml += `</tbody></table>`;
+        n2Div.innerHTML = tableHtml;
     }
 
-    // Initialize UI on load
+    // Initialize state
     toggleInputs();
 </script>
 

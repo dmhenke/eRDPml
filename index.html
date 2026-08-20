@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eRDPml Calculator Engine</title>
+    <style>
+        :root {
+            --primary: #005f73;
+            --primary-hover: #0a9396;
+            --bg: #f4f6f8;
+            --card-bg: #ffffff;
+            --text: #2b2d42;
+            --border: #e0e0e0;
+            --warning-bg: #fff3cd;
+            --warning-text: #856404;
+            --error-bg: #f8d7da;
+            --error-text: #721c24;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 24px;
+        }
+
+        h1 {
+            margin-top: 0;
+            color: var(--primary);
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 12px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+
+        button {
+            width: 100%;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .results-box {
+            background-color: #f8f9fa;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 16px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-bottom: 16px;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .alert-warning {
+            background-color: var(--warning-bg);
+            color: var(--warning-text);
+            border: 1px solid #ffeeba;
+        }
+
+        .alert-error {
+            background-color: var(--error-bg);
+            color: var(--error-text);
+            border: 1px solid #f5c6cb;
+        }
+
+        ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>eRDPml Calculator Engine</h1>
+    <div class="grid">
+        <!-- Input Section -->
+        <div>
+            <div class="form-group">
+                <label for="mode">Select Mode:</label>
+                <select id="mode" onchange="toggleInputs()">
+                    <option value="Dive Planning">Dive Planning</option>
+                    <option value="Surface Interval">Surface Interval</option>
+                    <option value="Max Depth">Max Depth</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="depth1">Dive 1 Depth (m):</label>
+                <input type="number" id="depth1" value="18" min="10" max="40">
+            </div>
+
+            <div class="form-group">
+                <label for="time1">Dive 1 Bottom Time (min):</label>
+                <input type="number" id="time1" value="30" min="1" max="219">
+            </div>
+
+            <div class="form-group" id="si-group">
+                <label for="si">Surface Interval (min):</label>
+                <input type="number" id="si" value="45" min="0" max="1440">
+            </div>
+
+            <div class="form-group" id="d2-depth-group">
+                <label for="depth2">Dive 2 Depth (m):</label>
+                <input type="number" id="depth2" value="14" min="10" max="40">
+            </div>
+
+            <div class="form-group" id="d2-time-group">
+                <label for="time2">Dive 2 Bottom Time (min):</label>
+                <input type="number" id="time2" value="30" min="1" max="219">
+            </div>
+
+            <button onclick="computeProfile()">Compute Profile</button>
+        </div>
+
+        <!-- Output Section -->
+        <div>
+            <h3>Calculation Results</h3>
+            <div id="results" class="results-box">Click "Compute Profile" to generate output.</div>
+
+            <h4>Active PADI Rules & Warnings</h4>
+            <div id="warnings"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const rdpNdlTable = [
+        { depth: 10, ndl: 219 },
+        { depth: 12, ndl: 147 },
+        { depth: 14, ndl: 98 },
+        { depth: 16, ndl: 56 },
+        { depth: 18, ndl: 56 },
+        { depth: 20, ndl: 45 },
+        { depth: 22, ndl: 37 },
+        { depth: 24, ndl: 29 },
+        { depth: 27, ndl: 22 },
+        { depth: 30, ndl: 20 },
+        { depth: 35, ndl: 14 },
+        { depth: 40, ndl: 9 }
+    ];
+
+    const pgTable = {
+        "10": {A:10, B:20, C:30, D:40, E:50, F:60, G:70, H:80, I:90, J:100, K:110, L:120, M:130, N:140, O:150, P:160, Q:170, R:180, S:190, T:200, U:210, V:219},
+        "12": {A:9, B:17, C:26, D:34, E:43, F:51, G:60, H:68, I:77, J:86, K:95, L:104, M:112, N:121, O:130, P:139, Q:147},
+        "14": {A:7, B:14, C:21, D:27, E:34, F:40, G:47, H:54, I:60, J:67, K:73, L:80, M:87, N:93, O:98},
+        "16": {A:6, B:12, C:17, D:23, E:28, F:34, G:39, H:45, I:50, J:56},
+        "18": {A:5, B:10, C:15, D:20, E:25, F:30, G:35, H:40, I:45, J:50, K:53, L:56},
+        "20": {A:4, B:8, C:12, D:16, E:20, F:24, G:28, H:32, I:36, J:40, K:43, L:45},
+        "22": {A:4, B:7, C:11, D:14, E:17, F:21, G:24, H:27, I:31, J:34, K:37},
+        "24": {A:3, B:6, C:9, D:12, E:15, F:18, G:21, H:24, I:27, J:29},
+        "27": {A:3, B:5, C:7, D:10, E:12, F:15, G:17, H:19, I:21, J:22},
+        "30": {A:2, B:4, C:6, D:8, E:10, F:12, G:14, H:16, I:18, J:20},
+        "35": {A:2, B:3, C:5, D:6, E:7, F:9, G:11, H:13, I:14},
+        "40": {A:1, B:2, C:3, D:4, E:5, F:6, G:7, H:8, I:9}
+    };
+
+    function toggleInputs() {
+        const mode = document.getElementById("mode").value;
+        const siGroup = document.getElementById("si-group");
+        const d2DepthGroup = document.getElementById("d2-depth-group");
+        const d2TimeGroup = document.getElementById("d2-time-group");
+
+        if (mode === "Max Depth") {
+            siGroup.style.display = "none";
+            d2DepthGroup.style.display = "none";
+            d2TimeGroup.style.display = "none";
+        } else if (mode === "Surface Interval") {
+            siGroup.style.display = "block";
+            d2DepthGroup.style.display = "none";
+            d2TimeGroup.style.display = "none";
+        } else {
+            siGroup.style.display = "block";
+            d2DepthGroup.style.display = "block";
+            d2TimeGroup.style.display = "block";
+        }
+    }
+
+    function getTableDepth(inputDepth) {
+        const validDepths = rdpNdlTable.map(row => row.depth);
+        if (validDepths.includes(inputDepth)) return inputDepth;
+        const higherDepths = validDepths.filter(d => d > inputDepth);
+        return higherDepths.length > 0 ? Math.min(...higherDepths) : 40;
+    }
+
+    function calcPg(depth, time) {
+        const tDepth = getTableDepth(depth).toString();
+        const thresholds = pgTable[tDepth];
+        for (const [group, maxTime] of Object.entries(thresholds)) {
+            if (time <= maxTime) return group;
+        }
+        return "Exceeded NDL";
+    }
+
+    function computeProfile() {
+        const mode = document.getElementById("mode").value;
+        const depth1 = parseFloat(document.getElementById("depth1").value);
+        const time1 = parseFloat(document.getElementById("time1").value);
+        const si = parseFloat(document.getElementById("si").value);
+        const depth2 = parseFloat(document.getElementById("depth2").value);
+        const time2 = parseFloat(document.getElementById("time2").value);
+
+        const resultsDiv = document.getElementById("results");
+        const warningsDiv = document.getElementById("warnings");
+
+        const planDepth1 = getTableDepth(depth1);
+        const ndl1 = rdpNdlTable.find(row => row.depth === planDepth1).ndl;
+
+        if (time1 > ndl1) {
+            resultsDiv.innerText = `Error: Dive 1 exceeds the No-Decompression Limit (NDL) of ${ndl1} minutes.`;
+            warningsDiv.innerHTML = `<div class="alert alert-error">Dive 1 exceeds safety thresholds. Plan a shallower depth or shorter bottom time.</div>`;
+            return;
+        }
+
+        const pg1 = calcPg(planDepth1, time1);
+        let outText = `Target Planning Depth (Dive 1): ${planDepth1} m\n`;
+        outText += `No-Decompression Limit (Dive 1): ${ndl1} min\n`;
+        outText += `Pressure Group after Dive 1: ${pg1}\n`;
+
+        let warnings = [];
+
+        if (planDepth1 >= 30 || (ndl1 - time1) <= 3) {
+            warnings.push("Safety Stop required for Dive 1: 3 minutes at 5 meters.");
+        }
+
+        if (["W", "X"].includes(pg1)) {
+            warnings.push("W/X Rule: Minimum surface interval of 1 hour required for repetitive dives.");
+        } else if (["Y", "Z"].includes(pg1)) {
+            warnings.push("Y/Z Rule: Minimum surface interval of 3 hours required for repetitive dives.");
+        }
+
+        if (mode === "Dive Planning") {
+            const planDepth2 = getTableDepth(depth2);
+            if (depth2 >= depth1) {
+                warnings.push("Rule Warning: Successive dives should be planned to shallower depths.");
+            }
+
+            const ndl2 = rdpNdlTable.find(row => row.depth === planDepth2).ndl;
+            const pg2 = calcPg(planDepth2, time2);
+
+            outText += `\n--- Repetitive Dive Details ---\n`;
+            outText += `Surface Interval: ${si} min\n`;
+            outText += `Target Planning Depth (Dive 2): ${planDepth2} m\n`;
+            outText += `Pressure Group after Dive 2: ${pg2}\n`;
+        }
+
+        resultsDiv.innerText = outText;
+
+        if (warnings.length > 0) {
+            warningsDiv.innerHTML = `<div class="alert alert-warning"><ul><li>${warnings.join("</li><li>")}</li></ul></div>`;
+        } else {
+            warningsDiv.innerHTML = `<p>No critical rules triggered.</p>`;
+        }
+    }
+
+    // Initialize UI on load
+    toggleInputs();
+</script>
+
+</body>
+</html>
